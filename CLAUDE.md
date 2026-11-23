@@ -2,7 +2,7 @@
 
 ## このリポジトリの目的
 
-Domain Preflightは、個人開発者や小規模サイト運営者向けの、**DNS・HTTPS・メール認証・セキュリティ設定の読み取り専用点検ツール**。Cloudflare以外のサイトでも使え、必要なら`cf` CLIから内部設定を補完する。最初はCLI + Markdown/JSONレポート + Agent Skillを作る。
+Domain Preflightは、**「Webサイトを作った。その後は大丈夫？」**に答える読み取り専用の点検ツール。中心の利用者は、WordPress などの CMS から AI の力を借りて別の構成へ移る、専門用語に詳しくない個人・小規模事業者（`docs/CONCEPT.md` v0.2）。Cloudflare以外のサイトでも使え、必要なら`cf` CLIから内部設定を補完する。最初はCLI + Markdown/JSONレポート + Agent Skillを作る。
 
 ## 最初に読むファイル
 
@@ -32,6 +32,7 @@ Domain Preflightは、個人開発者や小規模サイト運営者向けの、*
 - **Context-aware**: メール送信の有無やDNS-onlyかどうかなど、用途を確認せず強い推奨をしない。
 - **Deterministic core**: チェック・判定はTypeScriptで再現可能に実装し、AI Skillは利用補助にする。
 - **Minimal diffs**: 利用者が既に作成したファイル・設定を確認し、必要以上に変更しない。
+- **Plain language**: 新しいチェックには、`src/guide.ts` に用語を使わない説明（name / what / why / risk）を必ず追加する（テストで全チェックに付いていることを確かめている）。対象外は `notApplicable: true` にして、未確認と区別する。
 
 ## `cf` CLIを扱う際の必須事項
 

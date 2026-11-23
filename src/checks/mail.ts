@@ -79,10 +79,13 @@ export function checkMailContext(context: CheckContext, mail: MailObservation): 
       ? `メールを使わない宣言が公開されています（${[nullMx ? "Null MX" : "", signals.some((signal) => signal.includes("SPF -all")) ? "SPF -all" : ""].filter(Boolean).join("、")}）`
       : "メール用途の手がかりなし";
 
-  const conflict =
-    (mailUsage === "none" && (looksSending || looksReceiving)) ||
-    (sendsMail(mailUsage) && declaresNone && !looksSending) ||
-    (receivesMail(mailUsage) && nullMx);
+  // SPF -all alone does not contradict sending: mail can use another MAIL FROM domain and pass DMARC
+  // through DKIM (e.g. Amazon SES with a custom MAIL FROM). Only Null MX contradicts receiving.
+  const conflict = (mailUsage === "none" && (looksSending || looksReceiving)) || (receivesMail(mailUsage) && nullMx);
+  const spfOnlyNote =
+    sendsMail(mailUsage) && !looksSending && signals.some((signal) => signal.includes("SPF -all"))
+      ? `このホストのSPFは -all です。${host} をエンベロープ送信者（MAIL FROM）にしたメールはSPFで失敗しますが、送信サービスが別のサブドメインをMAIL FROMにし、DKIMで署名していれば問題ありません。送信サービスの設定（カスタム MAIL FROM、DKIM）を確認してください。`
+      : undefined;
 
   const limitations = [
     `${host} 自身のレコードだけを見ています。メール送信にサブドメイン（例: SESのMAIL FROM用の mail.${host}）を使う構成では、そちらにMX・SPFがあります。`,
@@ -112,7 +115,11 @@ export function checkMailContext(context: CheckContext, mail: MailObservation): 
       ? `指定された用途（${mailUsage}）と公開レコードが食い違っています（推測: ${inferred}）。`
       : `指定された用途（${mailUsage}）で点検します。公開レコードからの推測: ${inferred}。`,
     evidence: items,
-    recommendations: conflict ? ["用途の指定と実際の運用のどちらが正しいか確認してください。食い違いを解消するまで、メール関連の設定変更は控えてください。"] : [],
+    recommendations: conflict
+      ? ["用途の指定と実際の運用のどちらが正しいか確認してください。食い違いを解消するまで、メール関連の設定変更は控えてください。"]
+      : spfOnlyNote
+        ? [spfOnlyNote]
+        : [],
     limitations,
   });
 }
@@ -426,7 +433,8 @@ export function checkDkim(context: CheckContext, mail: MailObservation): CheckRe
       id,
       title,
       status: "not_checked",
-      summary: "DKIMセレクタが指定されていないため、確認していません。",
+      notApplicable: context.mailUsage === "none",
+      summary: context.mailUsage === "none" ? "メールを使わない設定のため対象外です。" : "DKIMセレクタが指定されていないため、確認していません。",
       limitations: ["DKIMの公開鍵はセレクタ名が分からないと取得できません。送信サービスの管理画面や、受信したメールの DKIM-Signature ヘッダー（s=）で確認し、--dkim-selector で指定してください。"],
     });
   }
@@ -464,5 +472,59 @@ export function checkDkim(context: CheckContext, mail: MailObservation): CheckRe
     summary: `指定したセレクタ（${mail.dkim.map((entry) => entry.selector).join(", ")}）のDKIM公開鍵が公開されています。`,
     evidence: items,
     limitations: ["鍵が公開されていることだけを確認しています。署名が実際に検証に通るかは、送信したメールで確認してください。"],
+  });
+}
+
+/**
+ * Warns before a migration when mail and the website share a server: moving the site (changing the
+ * A record) or cancelling the hosting contract would then stop mail too. Compares the IPs of the
+ * MX hosts with the IPs of the checked host and of the organizational domain.
+ */
+export async function checkSharedHost(context: CheckContext, mail: MailObservation): Promise<CheckResult> {
+  const { host, organizationalDomain, dns } = context;
+  const id = "mail.shared-host";
+  const title = "メールとWebサイトのサーバーの同居";
+  const exchanges = mail.mx.ok ? mail.mx.records.filter((record) => !isNullMx(record) && !/\s/.test(record.exchange)).map((record) => record.exchange.replace(/\.$/, "").toLowerCase()) : [];
+  if (exchanges.length === 0) {
+    return result({ id, title, status: "not_checked", notApplicable: true, summary: "このホストにはメールの受け取り先（MX）がないため対象外です。" });
+  }
+  const webNames = [...new Set([host, organizationalDomain])];
+  const addressesOf = async (name: string) => {
+    const [a, aaaa] = await Promise.all([dns.a(name), dns.aaaa(name)]);
+    return { name, failed: isLookupError(a) && isLookupError(aaaa), addresses: [...(a.ok ? a.records : []), ...(aaaa.ok ? aaaa.records : [])] };
+  };
+  const [mxHosts, webHosts] = await Promise.all([Promise.all(exchanges.slice(0, 5).map(addressesOf)), Promise.all(webNames.map(addressesOf))]);
+  const items = [
+    ...mxHosts.map((entry) => evidence(context, `DNS A/AAAA ${entry.name}（MX の行き先）(${dns.source})`, entry.addresses.join(", ") || "アドレスなし")),
+    ...webHosts.map((entry) => evidence(context, `DNS A/AAAA ${entry.name}（Webサイト）(${dns.source})`, entry.addresses.join(", ") || "アドレスなし")),
+  ];
+  if (mxHosts.some((entry) => entry.failed)) return result({ id, title, status: "error", summary: "MX の行き先の住所を取得できませんでした。", evidence: items });
+
+  const webAddresses = new Set(webHosts.flatMap((entry) => entry.addresses));
+  const shared = mxHosts.filter((entry) => webNames.includes(entry.name) || entry.addresses.some((address) => webAddresses.has(address)));
+  if (shared.length === 0) {
+    return result({
+      id,
+      title,
+      status: "pass",
+      severity: "info",
+      summary: "メールの受け取り先は、Webサイトとは別のサーバーです。サイトを移しても、MX を変えなければメールの受け取りには影響しません。",
+      evidence: items,
+      limitations: ["IP アドレスの一致だけで判定しています。別の IP でも同じ事業者の契約に含まれている場合（契約を解約するとメールも止まる場合）は判定できません。"],
+    });
+  }
+  return result({
+    id,
+    title,
+    status: "review",
+    severity: "medium",
+    summary: `メールの受け取り先（${shared.map((entry) => entry.name).join(", ")}）が、Webサイトと同じサーバーを指しています。サイトを移す・サーバーを解約すると、メールも止まるおそれがあります。`,
+    evidence: items,
+    recommendations: [
+      "サイトの移行やサーバーの解約の前に、メールをどこで受け取り続けるか決めてください。今のサーバーでメールだけ使い続けるか、メールサービス（Google Workspace、Microsoft 365 など）へ移すかで、手順が変わります。",
+      `MX の値がサイトと同じ名前（例: ${organizationalDomain}）になっている場合、サイトのために A レコードを変えると、メールの行き先も一緒に変わります。先に MX を、今のメールサーバー専用の名前（例: mail.${organizationalDomain}）に向け直しておくと安全です。`,
+      "切り替えた後は、外部のアドレスから自分宛てにメールを送り、届くことを確かめてください。",
+    ],
+    limitations: ["同じサーバーでも、メールだけを残せる契約や構成もあります。移行してよいかは、契約内容とメールの使い方によります。"],
   });
 }

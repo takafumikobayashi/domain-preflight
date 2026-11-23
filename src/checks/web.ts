@@ -61,7 +61,7 @@ export function checkHttps(context: CheckContext, web: WebObservation): CheckRes
     evidence(context, `HTTPS GET https://${host}/`, describeHop({ url: `https://${host}/`, response: web.https })),
   ];
   if (noWebsite(web)) {
-    return result({ id, title, status: "not_checked", summary: `${host} はアドレスに解決されないため、Webの点検は対象外です。`, evidence: items });
+    return result({ id, title, status: "not_checked", notApplicable: true, summary: `${host} はアドレスに解決されないため、Webの点検は対象外です。`, evidence: items });
   }
   if (!web.https.ok) {
     if (web.https.failure === "blocked-address") {
@@ -130,7 +130,7 @@ export function checkCertificate(context: CheckContext, web: WebObservation): Ch
   const cert = web.certificate;
   if (!cert.ok) {
     if (cert.failure === "dns" || cert.failure === "blocked-address") {
-      return result({ id, title, status: "not_checked", summary: "HTTPSで接続できる状態でないため、証明書は確認していません。", evidence: [evidence(context, `TLS ${host}:443`, cert.message)] });
+      return result({ id, title, status: "not_checked", notApplicable: cert.failure === "dns", summary: cert.failure === "dns" ? `${host} はアドレスに解決されないため、Webの点検は対象外です。` : "HTTPSで接続できる状態でないため、証明書は確認していません。", evidence: [evidence(context, `TLS ${host}:443`, cert.message)] });
     }
     return result({ id, title, status: "error", summary: `TLS接続に失敗しました（${cert.failure}）。`, evidence: [evidence(context, `TLS ${host}:443`, cert.message)] });
   }
@@ -199,7 +199,9 @@ export function checkHsts(context: CheckContext, web: WebObservation): CheckResu
   const id = "web.hsts";
   const title = "HSTS";
   if (!web.https.ok) {
-    return result({ id, title, status: "not_checked", summary: "HTTPSの応答が得られないため、確認していません。" });
+    return noWebsite(web)
+      ? result({ id, title, status: "not_checked", notApplicable: true, summary: `${host} はアドレスに解決されないため、Webの点検は対象外です。` })
+      : result({ id, title, status: "not_checked", summary: "HTTPSの応答が得られないため、確認していません。" });
   }
   const value = web.https.headers["strict-transport-security"];
   const items = [evidence(context, `HTTPS GET https://${host}/ のヘッダー`, value ? `Strict-Transport-Security: ${value}` : "Strict-Transport-Security なし")];
@@ -246,7 +248,9 @@ export function checkHeaders(context: CheckContext, web: WebObservation): CheckR
   const id = "web.headers";
   const title = "セキュリティ関連ヘッダー";
   if (!web.https.ok) {
-    return result({ id, title, status: "not_checked", summary: "HTTPSの応答が得られないため、確認していません。" });
+    return noWebsite(web)
+      ? result({ id, title, status: "not_checked", notApplicable: true, summary: `${host} はアドレスに解決されないため、Webの点検は対象外です。` })
+      : result({ id, title, status: "not_checked", summary: "HTTPSの応答が得られないため、確認していません。" });
   }
   const headers = web.https.headers;
   const watched = ["x-content-type-options", "content-security-policy", "x-frame-options", "referrer-policy", "permissions-policy", "server", "cf-ray"];

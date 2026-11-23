@@ -88,6 +88,7 @@ export async function checkDanglingCname(context: CheckContext): Promise<CheckRe
       id,
       title,
       status: isLookupError(cname) ? "error" : "not_checked",
+      notApplicable: !isLookupError(cname),
       summary: isLookupError(cname) ? "CNAMEの取得に失敗しました。" : "CNAMEがないため対象外です。",
       evidence: [evidence(context, `DNS CNAME ${host} (${dns.source})`, describeAnswer(cname))],
     });

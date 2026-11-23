@@ -137,3 +137,60 @@ describe("mail checks — SES custom MAIL FROM", () => {
     expect(checks["mail.context"]?.limitations.join(" ")).toContain("DKIM署名");
   });
 });
+
+describe("mail.shared-host — mail living on the web server", () => {
+  it("warns before migration when MX points at the same server as the site", async () => {
+    const checks = await check("example.com", {
+      ...baseZone(),
+      a: { "example.com": ["203.0.113.10"], "mail.example.com": ["203.0.113.10"] },
+      mx: { "example.com": [{ priority: 10, exchange: "mail.example.com" }] },
+    });
+    expect(checks["mail.shared-host"]).toMatchObject({ status: "review", severity: "medium" });
+    expect(checks["mail.shared-host"]?.recommendations.join(" ")).toContain("解約");
+  });
+
+  it("warns when MX is the site's own name", async () => {
+    const checks = await check("example.com", { ...baseZone(), mx: { "example.com": [{ priority: 10, exchange: "example.com" }] } });
+    expect(checks["mail.shared-host"]?.status).toBe("review");
+  });
+
+  it("passes when mail is hosted elsewhere, and is not_checked without MX", async () => {
+    const elsewhere = await check("example.com", {
+      ...baseZone(),
+      a: { "example.com": ["203.0.113.10"], "aspmx.l.google.com": ["198.51.100.27"] },
+      mx: { "example.com": [{ priority: 1, exchange: "aspmx.l.google.com" }] },
+    });
+    expect(elsewhere["mail.shared-host"]?.status).toBe("pass");
+    const noMx = await check("example.com", baseZone());
+    expect(noMx["mail.shared-host"]?.status).toBe("not_checked");
+  });
+});
+
+describe("not applicable vs not checked", () => {
+  it("a locked-down no-mail domain has a clear mail area, not 'unchecked'", async () => {
+    const { scanHost } = await import("../src/run.js");
+    const { FakeDns, FakeWeb, NOW, healthySite } = await import("./fakes.js");
+    const site = healthySite("example.com");
+    const report = await scanHost("example.com", {
+      hosts: ["example.com"], mailUsage: "none", dkimSelectors: [], now: NOW,
+      dns: new FakeDns({ ...baseZone(), mx: { "example.com": [{ priority: 0, exchange: "" }] }, txt: { "example.com": ["v=spf1 -all"], "_dmarc.example.com": ["v=DMARC1; p=reject;"] } }),
+      web: new FakeWeb(site.pages, site.certs),
+    });
+    const mail = report.areas.find((area) => area.id === "mail");
+    expect(mail?.state).toBe("clear");
+    expect(report.checks.find((c) => c.id === "mail.dkim")?.notApplicable).toBe(true);
+  });
+
+  it("DKIM without a selector is still 'not checked' (not 'not applicable') when mail is used", async () => {
+    const checks = await check("example.com", baseZone(), { mail: "send-only" });
+    expect(checks["mail.dkim"]?.notApplicable).toBeFalsy();
+  });
+});
+
+describe("SPF -all with declared sending (the field-notes trap)", () => {
+  it("does not call apex SPF -all a contradiction of send-only, but explains MAIL FROM + DKIM", async () => {
+    const checks = await check("example.com", { ...baseZone(), txt: { "example.com": ["v=spf1 -all"], "_dmarc.example.com": ["v=DMARC1; p=reject;"] } }, { mail: "send-only" });
+    expect(checks["mail.context"]?.status).toBe("pass");
+    expect(checks["mail.context"]?.recommendations.join(" ")).toContain("DKIM");
+  });
+});

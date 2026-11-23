@@ -1,4 +1,5 @@
-import type { CheckResult, CheckStatus, ScanReport, Severity } from "./types.js";
+import { AREA_STATE_LABEL } from "./guide.js";
+import type { AreaState, CheckResult, CheckStatus, ScanReport, Severity, TargetReport } from "./types.js";
 
 export const STATUS_LABEL: Record<CheckStatus, string> = {
   pass: "確認済み",
@@ -9,6 +10,16 @@ export const STATUS_LABEL: Record<CheckStatus, string> = {
 };
 
 const STATUS_ICON: Record<CheckStatus, string> = { pass: "✓", finding: "✗", review: "!", not_checked: "-", error: "?" };
+const AREA_ICON: Record<AreaState, string> = { action: "✗", error: "?", review: "!", unchecked: "-", clear: "✓" };
+
+const plainName = (check: CheckResult) => check.guide?.name ?? check.title;
+/** "対象外" for checks that do not apply, so they are not mistaken for gaps. */
+const statusLabel = (check: CheckResult) => (check.status === "not_checked" && check.notApplicable ? "対象外" : STATUS_LABEL[check.status]);
+
+/** The checks that need attention, most urgent first: what to look at next. */
+function nextSteps(target: TargetReport): CheckResult[] {
+  return [...target.checks].filter((check) => check.status === "finding" || check.status === "review" || check.status === "error").sort(byImportance);
+}
 const SEVERITY_ORDER: Severity[] = ["high", "medium", "low", "info"];
 const STATUS_ORDER: CheckStatus[] = ["finding", "error", "review", "not_checked", "pass"];
 
@@ -45,15 +56,33 @@ export function toMarkdown(report: ScanReport): string {
   for (const target of report.targets) {
     const checks = [...target.checks].sort(byImportance);
     lines.push(`## ${target.host}`, "");
+    lines.push("### このままで大丈夫？", "");
+    lines.push("| 目的 | 状態 | ひとこと |", "| --- | --- | --- |");
+    for (const area of target.areas) lines.push(`| ${area.name} | ${AREA_ICON[area.state]} ${AREA_STATE_LABEL[area.state]} | ${escapeCell(area.summary)} |`);
+    lines.push("");
+    const steps = nextSteps(target);
+    if (steps.length > 0) {
+      lines.push("**まず見てほしいこと**", "");
+      steps.slice(0, 3).forEach((check, index) => lines.push(`${index + 1}. **${plainName(check)}** — ${check.summary}`));
+      lines.push("");
+    }
+    lines.push("### 項目の一覧", "");
     lines.push(`組織ドメイン: ${target.organizationalDomain} ｜ ${counts(checks)}`, "");
-    lines.push("| 状態 | 重大度 | チェック | 概要 |", "| --- | --- | --- | --- |");
+    lines.push("| 状態 | 重大度 | 項目 | 概要 |", "| --- | --- | --- | --- |");
     for (const check of checks) {
-      lines.push(`| ${STATUS_LABEL[check.status]} | ${check.severity ?? "-"} | ${check.title} (\`${check.id}\`) | ${escapeCell(check.summary)} |`);
+      lines.push(`| ${statusLabel(check)} | ${check.severity ?? "-"} | ${plainName(check)}（\`${check.id}\`） | ${escapeCell(check.summary)} |`);
     }
     lines.push("");
     for (const check of checks) {
-      lines.push(`### ${STATUS_ICON[check.status]} ${check.title} — ${STATUS_LABEL[check.status]}`, "");
+      lines.push(`### ${STATUS_ICON[check.status]} ${plainName(check)} — ${statusLabel(check)}`, "");
       lines.push(check.summary, "");
+      if (check.guide) {
+        lines.push("**かんたんな説明**", "");
+        lines.push(`- 何を確認したか: ${check.guide.what}`);
+        lines.push(`- なぜ大事か: ${check.guide.why}`);
+        lines.push(`- 放っておくと／設定を誤ると: ${check.guide.risk}`);
+        lines.push(`- 用語: ${check.title}（\`${check.id}\`）`, "");
+      }
       if (check.evidence.length > 0) {
         lines.push("**観測結果**", "");
         for (const item of check.evidence) lines.push(`- ${item.source}: \`${item.detail.replace(/`/g, "'")}\``);
@@ -78,16 +107,19 @@ export function toText(report: ScanReport): string {
   const lines: string[] = [];
   for (const target of report.targets) {
     const checks = [...target.checks].sort(byImportance);
-    lines.push(`${target.host}  (組織ドメイン ${target.organizationalDomain})  ${counts(checks)}`);
+    lines.push(`${target.host}  (組織ドメイン ${target.organizationalDomain})`);
+    for (const area of target.areas) lines.push(`  ${AREA_ICON[area.state]} ${area.summary}`);
+    lines.push("");
     for (const check of checks) {
-      lines.push(`  ${STATUS_ICON[check.status]} ${STATUS_LABEL[check.status].padEnd(4, "　")} ${check.id.padEnd(20)} ${check.summary}`);
+      lines.push(`  ${STATUS_ICON[check.status]} ${statusLabel(check).padEnd(4, "　")} ${plainName(check)}`);
+      lines.push(`      ${check.summary}`);
       if (check.status === "finding" || check.status === "review") {
         for (const recommendation of check.recommendations.slice(0, 1)) lines.push(`      → ${recommendation}`);
       }
     }
     lines.push("");
   }
-  lines.push("詳細は --format markdown または --format json で確認できます。「確認済み」は安全の保証ではありません。");
+  lines.push("各項目の説明（何を確認したか・なぜ大事か）は --format markdown で確認できます。「確認済み」は安全の保証ではありません。");
   return lines.join("\n") + "\n";
 }
 

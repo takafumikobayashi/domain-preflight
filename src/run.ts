@@ -1,4 +1,5 @@
-import { checkMailContext, checkDkim, checkDmarc, checkMx, checkSpf, observeMail } from "./checks/mail.js";
+import { checkMailContext, checkDkim, checkDmarc, checkMx, checkSharedHost, checkSpf, observeMail } from "./checks/mail.js";
+import { summarizeAreas, withGuide } from "./guide.js";
 import { checkAddress, checkCaa, checkDanglingCname, checkDnssec, checkNameServers } from "./checks/dns.js";
 import { checkCertificate, checkHeaders, checkHsts, checkHttps, observeWeb } from "./checks/web.js";
 import type { CheckContext } from "./checks/context.js";
@@ -49,12 +50,14 @@ export async function scanHost(host: string, options: ScanOptions): Promise<Targ
     safely("web.hsts", "HSTS", () => checkHsts(context, web)),
     safely("web.headers", "セキュリティ関連ヘッダー", () => checkHeaders(context, web)),
     safely("mail.context", "メールの用途", () => checkMailContext(context, mail)),
+    safely("mail.shared-host", "メールとWebサイトのサーバーの同居", () => checkSharedHost(context, mail)),
     safely("mail.mx", "MX", () => checkMx(context, mail)),
     safely("mail.spf", "SPF", () => checkSpf(context, mail)),
     safely("mail.dmarc", "DMARC", () => checkDmarc(context, mail)),
     safely("mail.dkim", "DKIM", () => checkDkim(context, mail)),
   ]);
-  return { host, organizationalDomain: context.organizationalDomain, checks };
+  const guided = checks.map(withGuide);
+  return { host, organizationalDomain: context.organizationalDomain, areas: summarizeAreas(guided), checks: guided };
 }
 
 export async function scan(options: ScanOptions): Promise<ScanReport> {
