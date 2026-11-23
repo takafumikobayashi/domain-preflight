@@ -1,6 +1,6 @@
 # アーキテクチャ案
 
-> Phase 1 の実装（2026-11-22）に合わせて更新。技術選定は [DECISIONS.md](DECISIONS.md) を参照。
+> v0.1.0 の実装（2026-11-23）に合わせて更新。技術選定は [DECISIONS.md](DECISIONS.md) を参照。
 
 ## 1. 基本方針
 
@@ -32,7 +32,7 @@ User / Claude Code / Codex
 - **Reporters:** 判定済みモデルを表示する。JSONとMarkdownで根拠が食い違わないようにする。
 - **Agent Skill:** CLIの適切な呼び出し方と結果の読み方を案内する。新しい診断基準をSkill内で独自に作らない。
 
-## 2. ディレクトリ（Phase 1 時点）
+## 2. ディレクトリ（v0.1.0 時点）
 
 ```text
 src/
@@ -40,6 +40,7 @@ src/
   input.ts          # ホスト名の検証、組織ドメイン（PSL）、--mail
   run.ts            # ホストごとの観測 → 判定のオーケストレーション
   report.ts         # text / json / markdown（同じモデルから生成）
+  guide.ts          # 各チェックのやさしい説明（GUIDES）と目的ごとの状況（AREAS、summarizeAreas）
   types.ts          # CheckResult、ScanReport など
   net/
     dns.ts          # DnsClient インターフェースと node:dns 実装
@@ -61,7 +62,7 @@ plugin/             # Claude Code プラグイン（.claude-plugin/plugin.json�
 
 観測（observe*）と判定（check*）を同じファイルに置いているが、判定関数は観測結果だけを受け取る純粋な関数にしている。規模が大きくなったら分ける。
 
-## 3. データモデル（案）
+## 3. データモデル
 
 ```ts
 type CheckStatus =
@@ -71,7 +72,7 @@ type CheckStatus =
   | 'not_checked'
   | 'error';
 
-type Severity = 'critical' | 'high' | 'medium' | 'low' | 'info';
+type Severity = 'high' | 'medium' | 'low' | 'info';   // critical は使わない（DECISIONS D4）
 
 type Evidence = {
   source: string;       // 例: DNS TXT、HTTPS response、cf API
@@ -88,24 +89,37 @@ type CheckResult = {
   evidence: Evidence[];
   recommendations: string[];
   limitations: string[];
+  notApplicable?: boolean;  // not_checked のうち「このホストでは使っていないので対象外」
+  guide?: Guide;            // { name, what, why, risk }: 用語を使わない説明（src/guide.ts）
+};
+
+type AreaSummary = {        // 目的ごとの状況（点数の代わり）
+  id: 'website' | 'mail' | 'domain';
+  name: string;
+  state: 'action' | 'error' | 'review' | 'unchecked' | 'clear';
+  summary: string;
+  counts: Record<CheckStatus, number>;
+  notApplicable: number;
+  checkIds: string[];
 };
 
 type ScanReport = {
-  schemaVersion: '0.1.0';
-  target: string;
-  mode: 'public';   // Phase 3 で 'cloudflare' を追加。CLI では --provider cloudflare で指定する予定
+  schemaVersion: '0.2.0';
+  tool: { name: 'domain-preflight'; version: string };
+  mode: 'public';   // Phase 3 で 'cloudflare' を追加する予定
   startedAt: string;
   finishedAt: string;
-  checks: CheckResult[];
+  input: { hosts: string[]; mailUsage: MailUsage; dkimSelectors: string[]; resolver: string };
+  targets: { host: string; organizationalDomain: string; areas: AreaSummary[]; checks: CheckResult[] }[];
 };
 ```
 
-型・検査ルールは明示的にし、外部入力と`cf`出力はZod等で**実行時検証**する。上記は説明用であり、そのまま最終仕様としない。
+正は `src/types.ts`。上記は説明用の抜粋。Phase 3 で `cf` / API の出力を扱うときは、Zod 等で**実行時検証**する。
 
 ## 4. Public Checkの実装方針
 
 - DNSはNodeのDNS API等を利用。観測元やキャッシュの違いをレポートに明示する。
-- HTTP/HTTPSは安全な少数のGET/HEADまたはTLSハンドシェイクに限定。リダイレクトの接続先も検証する。
+- HTTP/HTTPSは少数のGETとTLSハンドシェイクに限定。リダイレクトの接続先も検証し、別の組織のドメインへの転送先にはアクセスしない。
 - 証明書の期限・名前の一致・検証エラーは可能な範囲で区別する。
 - HTTPヘッダーの有無だけでなく値と適用対象URLを残す。
 - SPF / DMARCはまず公開TXTレコードを取得。解釈は明示的な条件のみで段階的に実装する。

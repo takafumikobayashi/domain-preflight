@@ -13,7 +13,7 @@
 >
 > このツールの使い方によって生じた結果について、作者は責任を負いません（[MIT License](LICENSE)）。
 
-**Status: Phase 1（Public Check）実装済み・未公開** — 公開情報だけを使う点検（DNS・HTTPS・メール認証）が動きます。Cloudflare連携とnpmでの配布はまだです。下の「実装状況」を参照してください。
+**Status: v0.1.0（Public Check）公開中** — 公開情報だけを使う点検（DNS・HTTPS・メール認証）が動きます。Claude Code プラグインとして GitHub からインストールできます。Cloudflare連携とnpmでの配布はまだです。下の「実装状況」を参照してください。
 
 ## なぜ作るのか
 
@@ -116,7 +116,7 @@ npm run build
 - [セットアップガイド](docs/SETUP.md)
 - [使い方ガイド](docs/USAGE.md)
 - [実作業から得た知見](docs/FIELD_NOTES.md)
-- [技術判断の記録（Phase 0）](docs/DECISIONS.md)
+- [技術判断の記録](docs/DECISIONS.md)
 - [MVP要件・診断ルール](docs/REQUIREMENTS.md)
 - [アーキテクチャ案](docs/ARCHITECTURE.md)
 - [安全設計](docs/SECURITY.md)
