@@ -1,0 +1,14 @@
+{
+  "name": "domain-preflight",
+  "owner": {
+    "name": "takafumikobayashi"
+  },
+  "description": "Domain Preflight: read-only checks of your own domain's DNS, HTTPS and email authentication.",
+  "plugins": [
+    {
+      "name": "domain-preflight",
+      "source": "./plugin",
+      "description": "Read-only DNS, HTTPS and email-authentication checks with evidence-based reports (needs Node.js 24+)."
+    }
+  ]
+}

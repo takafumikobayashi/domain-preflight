@@ -1,0 +1,22 @@
+{
+  "name": "domain-preflight",
+  "displayName": "Domain Preflight",
+  "version": "0.1.0",
+  "description": "Read-only checks of your own domain's DNS, HTTPS and email authentication (SPF, DMARC, DKIM), with evidence-based reports that separate findings, items to review and what was not checked.",
+  "license": "MIT",
+  "author": {
+    "name": "takafumikobayashi"
+  },
+  "homepage": "https://github.com/takafumikobayashi/domain-preflight",
+  "repository": "https://github.com/takafumikobayashi/domain-preflight",
+  "keywords": [
+    "dns",
+    "https",
+    "hsts",
+    "spf",
+    "dmarc",
+    "dkim",
+    "security",
+    "cloudflare"
+  ]
+}

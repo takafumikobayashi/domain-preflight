@@ -1,0 +1,33 @@
+{
+  "name": "domain-preflight",
+  "version": "0.1.0",
+  "description": "Read-only DNS, HTTPS and email-authentication checks with evidence-based reports.",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "domain-preflight": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm test",
+    "bundle": "esbuild src/cli.ts --bundle --platform=node --format=cjs --target=node24 --legal-comments=eof --log-level=warning --outfile=plugin/lib/domain-preflight.cjs && node scripts/third-party-notices.mjs"
+  },
+  "dependencies": {
+    "tldts": "~7.4.19"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "esbuild": "0.28.2",
+    "typescript": "^5.9.3",
+    "vitest": "^5.1.1"
+  }
+}

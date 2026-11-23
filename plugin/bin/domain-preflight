@@ -1,0 +1,8 @@
+#!/bin/sh
+# Runs the bundled Domain Preflight CLI. The plugin puts this directory on the Bash tool's PATH.
+if ! command -v node >/dev/null 2>&1; then
+  echo "domain-preflight: Node.js 24 以上が必要です（node が見つかりません）。https://nodejs.org/ からインストールしてください。" >&2
+  exit 2
+fi
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec node "$here/../lib/domain-preflight.cjs" "$@"
