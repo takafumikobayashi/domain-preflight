@@ -25,8 +25,6 @@ Skill は CLI を呼び出すだけで、点検の機能は持たない。入れ
 
 ## A. Claude Code プラグインとして入れる（推奨）
 
-> **公開前:** この手順は、リポジトリが GitHub に公開された後に使える。
-
 前提は Node.js 24 以上だけ（`node -v` で確認）。npm でのインストールやビルドは不要。プラグインには、1ファイルにまとめた CLI（`plugin/lib/domain-preflight.cjs`）が同梱されている。
 
 Claude Code のセッションで:
@@ -48,7 +46,7 @@ claude plugin install domain-preflight@domain-preflight
 - Skill: 「example.com の DNS とメールの設定を点検して」と頼むと、手順に従って点検・説明する
 - コマンド: プラグインが有効な間、Claude が実行する Bash から `domain-preflight` で呼べる（プラグインの `bin/` が PATH に入る）
 
-更新は `claude plugin update domain-preflight@domain-preflight`、削除は `claude plugin uninstall domain-preflight@domain-preflight`。
+更新は `claude plugin marketplace update domain-preflight` の後に `claude plugin update domain-preflight@domain-preflight`、削除は `claude plugin uninstall domain-preflight@domain-preflight`。
 
 注意: プラグインの `bin/` は Claude Code の中だけで PATH に入る。普段のターミナルからも `domain-preflight` を使いたい場合や、CI で使う場合は B の手順で CLI を入れる。`bin/` を含むプラグインは claude.ai と Cowork にはインストールされない（コマンドを実行できる Claude Code 向け）。
 

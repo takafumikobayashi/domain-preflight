@@ -2,7 +2,7 @@
 
 > 本計画は実装前の叩き台。各段階で実装・テスト・文書を一致させる。
 >
-> **進捗（2026-11-22）:** Phase 0〜2 を実施。Public Check の14チェック、text / JSON / Markdown レポート、77件のテスト（ネットワーク非依存）、CI設定まで。残りは各 Phase の未チェック項目。
+> **進捗（2026-11-23）:** Phase 0〜2 と Phase 4 の大半を実施し、v0.1.0 を GitHub で公開した。Public Check の15チェック、やさしい説明（`guide`）と目的ごとの状況（`areas`）、text / JSON / Markdown レポート、87件のテスト（ネットワーク非依存）、CI（Node 24 / 26）、Claude Code プラグイン。残りは各 Phase の未チェック項目。
 
 ## 次にやること（推奨順、CONCEPT v0.2 に合わせて見直し）
 
@@ -73,11 +73,11 @@
 **ゴール:** Claude Code等から安全に呼び出せ、GitHubで第三者が使える。
 
 - [x] `plugin/skills/site-check/SKILL.md`を実コマンドに合わせて更新し、Claude Code プラグインとして配布できる形にした（`.claude-plugin/marketplace.json`）
-- [ ] 日本語README、実行例、スクリーンショットではなく架空レポート例
-- [ ] 初回実行・権限・データ取扱い・注意事項を明記
+- [x] 日本語README、実行例、スクリーンショットではなく架空レポート例（`docs/examples/sample-report.md`）
+- [x] 初回実行・権限・データ取扱い・注意事項を明記（README 冒頭の「利用上の注意」、SETUP、USAGE §6〜7、SECURITY）
 - [x] テスト・型チェックをCIに設定（Node 24 / 26。Lintは未導入）
-- [ ] ライセンス、CONTRIBUTING、CHANGELOG等を検討
-- [ ] 実装済み機能と将来構想を明確に分離
+- [ ] ライセンス、CONTRIBUTING、CHANGELOG等を検討（ライセンスは MIT に決定済み。CONTRIBUTING と CHANGELOG は未作成）
+- [x] 実装済み機能と将来構想を明確に分離（README の「実装状況」）
 
 **完了条件:** 新しい開発者がREADMEだけでインストール・検査・レポート取得まで再現できる。
 

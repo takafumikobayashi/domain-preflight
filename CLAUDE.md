@@ -15,7 +15,7 @@ Domain Preflightは、**「Webサイトを作った。その後は大丈夫？�
 
 加えて `docs/FIELD_NOTES.md`（出発点になった実作業の知見）と `docs/DECISIONS.md`（Phase 0 の技術判断）を読むこと。
 
-**現状（2026-11-22）:** Phase 0〜2 を実施済み。Public Check（14チェック）、text / JSON / Markdown レポート、テスト77件（`FakeDns` / `FakeWeb` を使い、ネットワーク非依存）、GitHub Actions の CI 設定。Cloudflare 連携（Phase 3）と npm 公開は未実装。README の「実装状況」の表が正。未実装の機能を実装済みとして説明しないこと。
+**現状（2026-11-23）:** v0.1.0 を GitHub で公開済み（MIT）。Public Check（15チェック）、やさしい説明と目的ごとの状況、text / JSON / Markdown レポート、テスト87件（`FakeDns` / `FakeWeb` を使い、ネットワーク非依存）、GitHub Actions の CI、Claude Code プラグイン。Cloudflare 連携（Phase 3）、`snapshot` / `compare`、npm 公開は未実装。README の「実装状況」の表が正。未実装の機能を実装済みとして説明しないこと。
 
 ## 開発コマンド
 
@@ -23,6 +23,12 @@ Domain Preflightは、**「Webサイトを作った。その後は大丈夫？�
 - `src/` を変えたら `npm run bundle` で `plugin/lib/domain-preflight.cjs` を作り直してコミットする（CI が差分を検査する）。プラグインの検証は `claude plugin validate . && claude plugin validate ./plugin --strict`
 - `node scripts/sample-report.mjs` で `docs/examples/sample-report.md` を架空データから再生成する（ビルド後）
 - 実在のドメインに対する試用は、利用者が管理するドメインだけにする。レポートを docs やテストに貼る場合は `example.com` に置き換える
+
+## ブランチと公開
+
+- 作業は `develop` で行い、`main` へはプルリクエストでマージする。`main` に直接コミット・プッシュしない。
+- リポジトリは公開されている。プッシュした内容はすぐに誰でも見られる。プッシュの前に、実在のドメイン、個人のメールアドレス、認証情報が含まれていないか確かめる。
+- コミットの作成者のメールアドレスは GitHub の noreply アドレスにする。
 
 ## 作業原則
 
