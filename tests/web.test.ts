@@ -28,6 +28,29 @@ describe("web checks", () => {
     expect(web.requested.filter((url) => url.startsWith("http://")).length).toBeLessThanOrEqual(6);
   });
 
+  it("does not request a redirect target on another organization's domain", async () => {
+    const site = healthySite(host);
+    const web = new FakeWeb({ ...site.pages, [`http://${host}/`]: response(301, { location: "https://other.example.net/landing" }) }, site.certs);
+    const result = (await check(host, baseZone(), { web }))["web.https"];
+    expect(web.requested).not.toContain("https://other.example.net/landing");
+    expect(result?.status).toBe("pass");
+    expect(result?.summary).toContain("other.example.net");
+    expect(result?.limitations.join("")).toContain("アクセスしていません");
+  });
+
+  it("follows a redirect within the same organizational domain", async () => {
+    const site = healthySite(host);
+    const pages = {
+      ...site.pages,
+      [`http://${host}/`]: response(301, { location: `http://www.${host}/` }),
+      [`http://www.${host}/`]: response(301, { location: `https://www.${host}/` }),
+    };
+    const web = new FakeWeb(pages, site.certs);
+    const result = (await check(host, baseZone(), { web }))["web.https"];
+    expect(web.requested).toContain(`http://www.${host}/`);
+    expect(result?.status).toBe("pass");
+  });
+
   it("finds a site that does not answer on HTTPS", async () => {
     const site = healthySite(host);
     const web = new FakeWeb({ ...site.pages, [`https://${host}/`]: failure("connect", "ECONNREFUSED") }, { [host]: failure("connect") });

@@ -977,7 +977,7 @@ function isPublicAddress(address) {
 
 // src/net/web.ts
 var TIMEOUT_MS2 = 8e3;
-var USER_AGENT = "domain-preflight/0.1 (read-only configuration check)";
+var USER_AGENT = "domain-preflight/0.1 (read-only configuration check; +https://github.com/takafumikobayashi/domain-preflight)";
 var BlockedAddressError = class extends Error {
   code = "EBLOCKED";
 };
@@ -2012,6 +2012,13 @@ function checkDnssec(context) {
 // src/checks/web.ts
 var MAX_REDIRECTS = 5;
 var DAY = 864e5;
+function sameOrganization(hostname, domain) {
+  try {
+    return organizationalDomain(hostname.toLowerCase().replace(/\.$/, "")) === domain;
+  } catch {
+    return false;
+  }
+}
 async function follow(context, start) {
   const hops = [];
   let url = start;
@@ -2026,6 +2033,10 @@ async function follow(context, start) {
       break;
     }
     if (next.protocol !== "http:" && next.protocol !== "https:") break;
+    if (!sameOrganization(next.hostname, context.organizationalDomain)) {
+      hops.push({ url: next.href, response: { ok: false, failure: "not-followed", message: "\u5225\u306E\u7D44\u7E54\u306E\u30C9\u30E1\u30A4\u30F3\u306E\u305F\u3081\u3001\u30A2\u30AF\u30BB\u30B9\u3057\u3066\u3044\u307E\u305B\u3093" } });
+      break;
+    }
     url = next;
   }
   return hops;
@@ -2038,7 +2049,7 @@ async function observeWeb(context) {
   ]);
   return { fromHttp, https: https2, certificate };
 }
-var describeHop = (hop) => hop.response.ok ? `${hop.response.status}${hop.response.headers.location ? ` \u2192 ${hop.response.headers.location}` : ""}` : `\u63A5\u7D9A\u5931\u6557 (${hop.response.failure}: ${hop.response.message})`;
+var describeHop = (hop) => !hop.response.ok && hop.response.failure === "not-followed" ? `\u8EE2\u9001\u5148\uFF08${hop.response.message}\uFF09` : hop.response.ok ? `${hop.response.status}${hop.response.headers.location ? ` \u2192 ${hop.response.headers.location}` : ""}` : `\u63A5\u7D9A\u5931\u6557 (${hop.response.failure}: ${hop.response.message})`;
 var noWebsite = (web) => !web.https.ok && web.https.failure === "dns";
 function checkHttps(context, web) {
   const { host } = context;
@@ -2071,7 +2082,11 @@ function checkHttps(context, web) {
   const redirectsToHttps = web.fromHttp.length > 1 && last !== void 0 && new URL(last.url).protocol === "https:";
   const tooMany = web.fromHttp.length > MAX_REDIRECTS && last?.response.ok && last.response.status >= 300 && last.response.status < 400;
   const httpServes = first?.response.ok && first.response.status >= 200 && first.response.status < 300;
-  const limitations = ["\u30C8\u30C3\u30D7\u30DA\u30FC\u30B8\uFF08/\uFF09\u3060\u3051\u3092\u78BA\u8A8D\u3057\u3066\u3044\u307E\u3059\u3002"];
+  const external = last !== void 0 && !last.response.ok && last.response.failure === "not-followed";
+  const limitations = [
+    "\u30C8\u30C3\u30D7\u30DA\u30FC\u30B8\uFF08/\uFF09\u3060\u3051\u3092\u78BA\u8A8D\u3057\u3066\u3044\u307E\u3059\u3002",
+    ...external ? [`\u8EE2\u9001\u5148 ${new URL(last.url).host} \u306F\u5225\u306E\u7D44\u7E54\u306E\u30C9\u30E1\u30A4\u30F3\u306E\u305F\u3081\u3001\u30A2\u30AF\u30BB\u30B9\u3057\u3066\u3044\u307E\u305B\u3093\u3002`] : []
+  ];
   if (tooMany) {
     return result({
       id,
@@ -2102,7 +2117,7 @@ function checkHttps(context, web) {
     title,
     status: serverError ? "review" : "pass",
     severity: serverError ? "medium" : "info",
-    summary: `https://${host}/ \u306F ${web.https.status} \u3092\u8FD4\u3057\u3001${first?.response.ok ? "http:// \u304B\u3089\u306FHTTPS\u3078\u8EE2\u9001\u3055\u308C\u307E\u3059" : "http:// \u306F\u5FDC\u7B54\u3057\u307E\u305B\u3093\uFF08HTTPS\u306E\u307F\uFF09"}\u3002`,
+    summary: `https://${host}/ \u306F ${web.https.status} \u3092\u8FD4\u3057\u3001${first?.response.ok ? external ? `http:// \u304B\u3089\u306F\u5225\u306E\u30C9\u30E1\u30A4\u30F3\uFF08${new URL(last.url).host}\uFF09\u306EHTTPS\u3078\u8EE2\u9001\u3055\u308C\u307E\u3059` : "http:// \u304B\u3089\u306FHTTPS\u3078\u8EE2\u9001\u3055\u308C\u307E\u3059" : "http:// \u306F\u5FDC\u7B54\u3057\u307E\u305B\u3093\uFF08HTTPS\u306E\u307F\uFF09"}\u3002`,
     evidence: items,
     recommendations: serverError ? ["\u30B5\u30FC\u30D0\u30FC\u30A8\u30E9\u30FC\u304C\u8FD4\u3063\u3066\u3044\u307E\u3059\u3002\u4E00\u6642\u7684\u306A\u969C\u5BB3\u3067\u306A\u3044\u304B\u78BA\u8A8D\u3057\u3066\u304F\u3060\u3055\u3044\u3002"] : [],
     limitations
@@ -2331,7 +2346,8 @@ var HELP = `domain-preflight ${VERSION} \u2014 DNS\u30FBHTTPS\u30FB\u30E1\u30FC\
   -v, --version           \u30D0\u30FC\u30B8\u30E7\u30F3
 
 \u7D42\u4E86\u30B3\u30FC\u30C9: 0 \u5B8C\u4E86 / 1 --fail-on \u306B\u8A72\u5F53 / 2 \u5165\u529B\u304C\u4E0D\u6B63 / 3 \u4E88\u671F\u3057\u306A\u3044\u30A8\u30E9\u30FC
-\u3053\u306E\u30C4\u30FC\u30EB\u306F\u8A2D\u5B9A\u3092\u5909\u66F4\u3057\u307E\u305B\u3093\u3002\u70B9\u691C\u306F\u81EA\u5206\u304C\u7BA1\u7406\u3059\u308B\u3001\u307E\u305F\u306F\u8A31\u53EF\u3092\u5F97\u305F\u30B5\u30A4\u30C8\u306B\u5BFE\u3057\u3066\u884C\u3063\u3066\u304F\u3060\u3055\u3044\u3002
+\u6CE8\u610F: \u81EA\u5206\uFF08\u307E\u305F\u306F\u6240\u5C5E\u5148\uFF09\u304C\u7BA1\u7406\u3057\u3066\u3044\u308B\u30C9\u30E1\u30A4\u30F3\u4EE5\u5916\u306B\u306F\u4F7F\u308F\u306A\u3044\u3067\u304F\u3060\u3055\u3044\u3002
+\u3053\u306E\u30C4\u30FC\u30EB\u306F\u516C\u958B\u60C5\u5831\u3092\u8AAD\u3080\u3060\u3051\u3067\u8A2D\u5B9A\u306F\u5909\u66F4\u3057\u307E\u305B\u3093\u304C\u3001\u70B9\u691C\u306E\u901A\u4FE1\u306F\u76F8\u624B\u306E\u30B5\u30FC\u30D0\u30FC\u306E\u8A18\u9332\u306B\u6B8B\u308A\u307E\u3059\u3002
 `;
 var SEVERITIES = ["high", "medium", "low"];
 var MIN_NODE_MAJOR = 24;

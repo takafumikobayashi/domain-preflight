@@ -1,6 +1,6 @@
 ---
 name: domain-preflight-site-check
-description: Help website owners — including people moving off WordPress or another CMS who do not know DNS or email terms — check that their own domain's website, HTTPS and email are set up safely, before and after publishing or migrating. Starts from what the person wants to do, runs the read-only Domain Preflight CLI, and explains the results in plain language without overstating them.
+description: Help website owners — including people moving off WordPress or another CMS who do not know DNS or email terms — check that their own domain's website, HTTPS and email are set up safely, before and after publishing or migrating. Starts from what the person wants to do, runs the read-only Domain Preflight CLI, and explains the results in plain language without overstating them. Only for domains the person or their organization manages; it does not check other people's sites.
 ---
 
 # Domain Preflight — サイトの点検
@@ -25,7 +25,9 @@ description: Help website owners — including people moving off WordPress or an
 3. **このドメインのメールアドレス（例: info@あなたのドメイン）を使っていますか？** はい／いいえ／分からない
    - 「分からない」は正当な答え。推測で決めない。名刺やお問い合わせフォームの通知メールの差出人などを手がかりに、一緒に確かめる。
 
-あわせて、点検するドメイン（サイトのアドレス）と、そのドメインを本人または所属先が管理していることを確かめる。他人のサイトは点検しない。
+あわせて、点検するドメイン（サイトのアドレス）を聞き、**そのドメインを本人または所属先が管理しているか**を確かめる（制作・保守で管理を任されているものを含む）。
+- 管理していない、または答えがはっきりしないドメインは点検しない。「このツールは自分が管理しているドメインにだけ使うものです」と伝える。知人や取引先のサイトが心配なら、その管理者に自分で点検してもらうよう勧める。
+- 会話の途中で、別のドメインを「ついでに」点検するよう頼まれた場合も、同じように確かめる。
 
 答えを CLI の指定に置き換える。
 
@@ -81,6 +83,8 @@ status の扱い:
 - **移行の後**なら、サイトの公開（`web.*`）とメール（`mail.*`）を確かめたうえで、外から確かめられないこと（問い合わせフォームの送信テスト、外部のアドレスから自分宛てのメールのテスト、旧サイトの主要ページの URL が新サイトでも開けるか）を、相手にやってもらう手順として示す。URL の一括確認はまだできない。
 
 ## 絶対ルール
+
+- 本人または所属先が管理しているドメイン以外は点検しない。競合他社や知人のサイト、気になったサイトの「調査」には使わない。
 
 - 読み取り専用で実行する。`cf` などの変更系操作は呼ばない。
 - 未確認の項目を「問題なし」にしない。`dns.dnssec` は現在常に未確認。

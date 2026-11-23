@@ -1,5 +1,6 @@
 import type { Certificate, WebError, WebResponse } from "../net/web.js";
 import type { CheckResult, Evidence } from "../types.js";
+import { organizationalDomain } from "../input.js";
 import { evidence, result, type CheckContext } from "./context.js";
 
 const MAX_REDIRECTS = 5;
@@ -16,6 +17,14 @@ export type WebObservation = {
   certificate: Certificate | WebError;
 };
 
+function sameOrganization(hostname: string, domain: string): boolean {
+  try {
+    return organizationalDomain(hostname.toLowerCase().replace(/\.$/, "")) === domain;
+  } catch {
+    return false;
+  }
+}
+
 async function follow(context: CheckContext, start: URL): Promise<Hop[]> {
   const hops: Hop[] = [];
   let url = start;
@@ -30,6 +39,11 @@ async function follow(context: CheckContext, start: URL): Promise<Hop[]> {
       break;
     }
     if (next.protocol !== "http:" && next.protocol !== "https:") break;
+    if (!sameOrganization(next.hostname, context.organizationalDomain)) {
+      // Only the owner's own domain is checked: a redirect elsewhere is recorded, not requested.
+      hops.push({ url: next.href, response: { ok: false, failure: "not-followed", message: "別の組織のドメインのため、アクセスしていません" } });
+      break;
+    }
     url = next;
   }
   return hops;
@@ -45,7 +59,9 @@ export async function observeWeb(context: CheckContext): Promise<WebObservation>
 }
 
 const describeHop = (hop: Hop) =>
-  hop.response.ok
+  !hop.response.ok && hop.response.failure === "not-followed"
+    ? `転送先（${hop.response.message}）`
+    : hop.response.ok
     ? `${hop.response.status}${hop.response.headers.location ? ` → ${hop.response.headers.location}` : ""}`
     : `接続失敗 (${hop.response.failure}: ${hop.response.message})`;
 
@@ -84,7 +100,11 @@ export function checkHttps(context: CheckContext, web: WebObservation): CheckRes
   const redirectsToHttps = web.fromHttp.length > 1 && last !== undefined && new URL(last.url).protocol === "https:";
   const tooMany = web.fromHttp.length > MAX_REDIRECTS && last?.response.ok && last.response.status >= 300 && last.response.status < 400;
   const httpServes = first?.response.ok && first.response.status >= 200 && first.response.status < 300;
-  const limitations = ["トップページ（/）だけを確認しています。"];
+  const external = last !== undefined && !last.response.ok && last.response.failure === "not-followed";
+  const limitations = [
+    "トップページ（/）だけを確認しています。",
+    ...(external ? [`転送先 ${new URL(last.url).host} は別の組織のドメインのため、アクセスしていません。`] : []),
+  ];
 
   if (tooMany) {
     return result({
@@ -116,7 +136,7 @@ export function checkHttps(context: CheckContext, web: WebObservation): CheckRes
     title,
     status: serverError ? "review" : "pass",
     severity: serverError ? "medium" : "info",
-    summary: `https://${host}/ は ${web.https.status} を返し、${first?.response.ok ? "http:// からはHTTPSへ転送されます" : "http:// は応答しません（HTTPSのみ）"}。`,
+    summary: `https://${host}/ は ${web.https.status} を返し、${first?.response.ok ? (external ? `http:// からは別のドメイン（${new URL(last.url).host}）のHTTPSへ転送されます` : "http:// からはHTTPSへ転送されます") : "http:// は応答しません（HTTPSのみ）"}。`,
     evidence: items,
     recommendations: serverError ? ["サーバーエラーが返っています。一時的な障害でないか確認してください。"] : [],
     limitations,

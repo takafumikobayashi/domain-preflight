@@ -5,7 +5,8 @@ import type { LookupFunction } from "node:net";
 import tls from "node:tls";
 import { isPublicAddress } from "./address.js";
 
-export type WebFailure = "blocked-address" | "dns" | "timeout" | "tls" | "connect" | "other";
+/** "not-followed": a redirect to another organization's domain, deliberately not requested. */
+export type WebFailure = "blocked-address" | "dns" | "timeout" | "tls" | "connect" | "not-followed" | "other";
 
 export type WebResponse = {
   ok: true;
@@ -41,7 +42,8 @@ export interface WebClient {
 }
 
 const TIMEOUT_MS = 8_000;
-const USER_AGENT = "domain-preflight/0.1 (read-only configuration check)";
+/** Says what the request is and where to ask, for whoever reads the server log. */
+const USER_AGENT = "domain-preflight/0.1 (read-only configuration check; +https://github.com/takafumikobayashi/domain-preflight)";
 
 class BlockedAddressError extends Error {
   code = "EBLOCKED";
